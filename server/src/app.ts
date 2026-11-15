@@ -252,11 +252,11 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     await app.register(fastifyStatic, {
       root: options.webDir,
       prefix: '/',
-      setHeaders(res, filePath) {
+      setHeaders(reply, filePath) {
         if (filePath.includes(`${path.sep}assets${path.sep}`)) {
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+          reply.header('Cache-Control', 'public, max-age=31536000, immutable')
         } else if (filePath.endsWith('.html') || filePath.endsWith('.webmanifest') || filePath.endsWith('sw.js')) {
-          res.setHeader('Cache-Control', 'no-cache')
+          reply.header('Cache-Control', 'no-cache')
         }
       },
     })
