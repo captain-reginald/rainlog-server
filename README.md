@@ -200,6 +200,8 @@ npm start
 
 Tests cover the storage contract (including plugin-shaped files, stale-write merging, corruption, snapshots), the importers, and the HTTP API. A Docker smoke test runs in CI.
 
+`npm audit --omit=dev` reports zero vulnerabilities. A full audit still lists advisories in `workbox-build`'s glob/deepmerge chain, which only runs while building the service worker and has no patched upstream release yet; none of it ships at runtime.
+
 ### Repository layout
 
 ```text
