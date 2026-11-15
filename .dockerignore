@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+web/dist
+data
+.git
+.github
+.gitignore
+*.log
+coverage
+screenshots
+README.md

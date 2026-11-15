@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t rainlog-server:test --build-arg RAINLOG_VERSION=ci .
+      - name: Smoke test
+        run: |
+          mkdir -p "$PWD/test-data"
+          docker run -d --name rainlog -p 8080:8080 \
+            -e PUID="$(id -u)" -e PGID="$(id -g)" \
+            -v "$PWD/test-data:/data" rainlog-server:test
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/api/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/api/state
+          curl -fsS -X PUT -H 'Content-Type: application/json' \
+            -d '{"tenths":23}' \
+            http://127.0.0.1:8080/api/entries/2026-11-14
+          node -e '
+            const fs = require("fs");
+            const data = JSON.parse(fs.readFileSync("test-data/rainlog.json", "utf8"));
+            if (data.entries["2026-11-14"] !== 23) throw new Error("write failed");
+            console.log("compatible data file verified");
+          '
+      - name: Clean up
+        if: always()
+        run: |
+          docker logs rainlog || true
+          docker rm -f rainlog || true

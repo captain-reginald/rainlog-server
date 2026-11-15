@@ -1,0 +1,17 @@
+node_modules/
+dist/
+web/dist/
+data/
+test-data/
+*.log
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+coverage/

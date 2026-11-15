@@ -1,0 +1,24 @@
+name: rainlog
+
+services:
+  rainlog:
+    image: ghcr.io/captain-reginald/rainlog-server:latest
+    build: .
+    container_name: rainlog
+    ports:
+      # Published on all interfaces so phones on the LAN can reach it.
+      - "8080:8080"
+    environment:
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      TZ: "${TZ:-America/Denver}"
+      # Optional:
+      # RAINLOG_SNAPSHOT_RETENTION: "100"
+      # RAINLOG_SNAPSHOT_INTERVAL: "3600"
+      # RAINLOG_TRUST_PROXY: "false"
+      # RAINLOG_CHOWN: "0"
+    volumes:
+      # Mount the directory, never the single JSON file: atomic replaces need
+      # the directory entry to change on the host too.
+      - ./data:/data
+    restart: unless-stopped
