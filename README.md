@@ -24,6 +24,7 @@ No database, no accounts, no telemetry. One JSON file, a few flat companion file
 ```bash
 git clone https://github.com/captain-reginald/rainlog-server.git
 cd rainlog-server
+mkdir -p data   # keep it owned by you; Docker would create it as root
 docker compose up -d
 ```
 
@@ -41,6 +42,8 @@ docker compose up -d
 ```
 
 The directory that contains `rainlog.json` must be writable by `PUID:PGID`. On a typical single-user Linux machine, `id -u` and `id -g` give you the right values. If the directory has different ownership, either change `PUID`/`PGID` or set `RAINLOG_CHOWN=1` once.
+
+A directory that Docker creates on first start is owned by `root`, which the container cannot write. Create `./data` on the host before starting (the cloned repo ships an empty one), or let the container take it over with `RAINLOG_CHOWN=1`.
 
 ### Image tags
 

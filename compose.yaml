@@ -20,5 +20,6 @@ services:
     volumes:
       # Mount the directory, never the single JSON file: atomic replaces need
       # the directory entry to change on the host too.
+      # Create it on the host first; Docker creates a missing one as root.
       - ./data:/data
     restart: unless-stopped

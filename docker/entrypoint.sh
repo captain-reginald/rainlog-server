@@ -31,6 +31,7 @@ if ! su-exec "$PUID:$PGID" test -w "$DATA_DIR" 2>/dev/null; then
   echo "rainlog: $DATA_DIR is not writable by $PUID:$PGID." >&2
   echo "rainlog: make the mounted directory writable by that user, set PUID/PGID to its owner," >&2
   echo "rainlog: or set RAINLOG_CHOWN=1 to let the container take ownership of the data directory." >&2
+  echo "rainlog: a directory Docker created on first start is owned by root; create it on the host first." >&2
   exit 1
 fi
 

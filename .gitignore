@@ -1,7 +1,8 @@
 node_modules/
 dist/
 web/dist/
-data/
+data/*
+!data/.gitkeep
 test-data/
 *.log
 .DS_Store
