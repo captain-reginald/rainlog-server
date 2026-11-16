@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       includeAssets: ['favicon.svg', 'background.jpg', 'icons/*.png'],
       manifest: {
         name: 'Rain Log',
