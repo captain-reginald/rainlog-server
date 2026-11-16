@@ -153,28 +153,44 @@ export function yearsWithData(entries: Entries): number[] {
   return [...years].sort((a, b) => b - a)
 }
 
-export function cumulativeSeason(entries: Entries, reference: Date): { key: string; value: number }[] {
-  const start = seasonStart(reference)
-  const end = new Date(start.getTime())
-  end.setMonth(end.getMonth() + 3)
-  end.setDate(end.getDate() - 1)
-  const today = noonToday()
-  const last = today.getTime() < end.getTime() ? today : end
-  const out: { key: string; value: number }[] = []
-  let running = 0
-  const cursor = new Date(start.getTime())
-  while (cursor.getTime() <= last.getTime()) {
-    const key = dateKey(cursor)
-    running += entries[key] ?? 0
-    out.push({ key, value: running })
-    cursor.setDate(cursor.getDate() + 1)
+export function yearWindow(year: number): Window {
+  return {
+    start: new Date(year, 0, 1, 12),
+    end: new Date(year, 11, 31, 12),
   }
-  return out
 }
 
-export function seasonForYear(entries: Entries, year: number, season: string): { key: string; value: number }[] {
-  const starts: Record<string, number> = { Spring: 2, Summer: 5, Autumn: 8, Winter: 11 }
-  const month = starts[season] ?? 11
-  const start = new Date(year, month, 1, 12)
-  return cumulativeSeason(entries, start)
+/**
+ * Spreads each month's normal evenly across its days, so "average to date"
+ * follows the calendar instead of assuming a flat fraction of the month.
+ */
+export function normalBetween(monthlyTenths: number[], start: Date, end: Date): number {
+  let total = 0
+  const cursor = new Date(start.getTime())
+  cursor.setHours(12, 0, 0, 0)
+  const last = new Date(end.getTime())
+  last.setHours(12, 0, 0, 0)
+  while (cursor.getTime() <= last.getTime()) {
+    const month = cursor.getMonth()
+    const days = new Date(cursor.getFullYear(), month + 1, 0).getDate()
+    total += (monthlyTenths[month] ?? 0) / days
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return total
+}
+
+export function normalMonth(monthlyTenths: number[], month: number): number {
+  return monthlyTenths[month] ?? 0
+}
+
+export function normalSeason(monthlyTenths: number[], reference: Date): number {
+  const start = seasonStart(reference)
+  return [0, 1, 2].reduce((sum, offset) => {
+    const month = new Date(start.getFullYear(), start.getMonth() + offset, 1, 12).getMonth()
+    return sum + (monthlyTenths[month] ?? 0)
+  }, 0)
+}
+
+export function normalYear(monthlyTenths: number[]): number {
+  return monthlyTenths.reduce((sum, value) => sum + value, 0)
 }

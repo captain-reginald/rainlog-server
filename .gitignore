@@ -3,6 +3,7 @@ dist/
 web/dist/
 data/*
 !data/.gitkeep
+data-original/
 test-data/
 *.log
 .DS_Store

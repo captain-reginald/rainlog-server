@@ -226,8 +226,8 @@ export function History() {
           </form>
           <div className="divider" />
           <p className="card-note">
-            Tenths match the markings on a US rain gauge: 23 means 2.3 inches. The file stores whole
-            tenths only, so other apps and the Omarchy plugin read the same numbers.
+            Tenths match the markings on a US rain gauge: 23 means 2.3 inches. Readings are stored as
+            whole tenths, so the numbers stay exact.
           </p>
         </section>
       </div>

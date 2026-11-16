@@ -1,4 +1,4 @@
-import type { ImportReport, Preferences, SnapshotInfo, StatePayload } from './types'
+import type { Climate, ImportReport, Preferences, SnapshotInfo, StatePayload } from './types'
 
 export interface ApiErrorBody {
   error?: string
@@ -69,10 +69,28 @@ export function saveEntry(date: string, tenths: number | null, options: SetEntry
   })
 }
 
-export function savePreferences(prefs: Pick<Preferences, 'units' | 'customDays'>): Promise<Preferences> {
+export function savePreferences(prefs: Pick<Preferences, 'units' | 'windows'>): Promise<Preferences> {
   return request<Preferences>('/api/preferences', {
     method: 'PUT',
     body: JSON.stringify(prefs),
+  })
+}
+
+export function fetchClimate(): Promise<{ climate: Climate | null }> {
+  return request<{ climate: Climate | null }>('/api/climate')
+}
+
+export function saveLocality(locality: string): Promise<{ climate: Climate }> {
+  return request<{ climate: Climate }>('/api/climate', {
+    method: 'PUT',
+    body: JSON.stringify({ locality }),
+  })
+}
+
+export function clearLocality(): Promise<{ climate: null }> {
+  return request<{ climate: null }>('/api/climate', {
+    method: 'DELETE',
+    body: '{}',
   })
 }
 

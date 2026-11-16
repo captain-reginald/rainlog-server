@@ -36,11 +36,11 @@ export function useSetEntry() {
       if (error instanceof ApiError) {
         if (error.status === 409) {
           if (error.body.state) queryClient.setQueryData(['state'], error.body.state)
-          notify('The file changed elsewhere. Current readings were reloaded; please try again.', 'warn')
+          notify('The readings changed elsewhere. Current readings were reloaded; please try again.', 'warn')
           return
         }
         if (error.status === 422) {
-          notify('rainlog.json is not valid JSON. Use the Data page to inspect or recover it.', 'error')
+          notify('The stored readings are not valid JSON. Use the Data page to inspect or recover them.', 'error')
           return
         }
         notify(error.message, 'error')
@@ -55,7 +55,7 @@ export function useSavePreferences() {
   const queryClient = useQueryClient()
   const { notify } = useToast()
   return useMutation({
-    mutationFn: (prefs: Pick<Preferences, 'units' | 'customDays'>) => savePreferences(prefs),
+    mutationFn: (prefs: Pick<Preferences, 'units' | 'windows'>) => savePreferences(prefs),
     onSuccess: (prefs) => {
       queryClient.setQueryData<StatePayload>(['state'], (current) =>
         current ? { ...current, prefs } : current,

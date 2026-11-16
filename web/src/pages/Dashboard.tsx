@@ -7,7 +7,6 @@ import {
   formatAmount,
   formatLongDate,
   formatMonthYear,
-  formatRange,
   formatValue,
   formatWindowLabel,
   parseTenthsInput,
@@ -20,25 +19,26 @@ import {
   recentRainy,
   seasonWindow,
   sumEntries,
+  yearWindow,
 } from '../lib/model'
 
 interface Offsets {
   d1: number
-  d3: number
   week: number
-  custom: number
+  windows: number[]
   month: number
   season: number
+  year: number
 }
 
-const INITIAL_OFFSETS: Offsets = { d1: 0, d3: 0, week: 0, custom: 0, month: 0, season: 0 }
+const INITIAL_OFFSETS: Offsets = { d1: 0, week: 0, windows: [], month: 0, season: 0, year: 0 }
 
 export function Dashboard() {
   const stateQuery = useRainlogState()
   const state = stateQuery.data
   const entries = useMemo(() => state?.entries ?? {}, [state])
   const units = state?.prefs.units ?? 'in'
-  const customDays = state?.prefs.customDays ?? 14
+  const windows = state?.prefs.windows ?? [14, 30]
   const today = dateKey(new Date())
   const currentToday = entries[today]
   const { draft, setDraft, inputRef } = useEntryDraft(today, currentToday)
@@ -59,25 +59,36 @@ export function Dashboard() {
 
   const views = useMemo(() => {
     const w1 = dayWindow(1, offsets.d1)
-    const w3 = dayWindow(3, offsets.d3)
     const week = dayWindow(7, offsets.week)
-    const custom = dayWindow(customDays, offsets.custom)
+    const custom = windows.map((days, index) => {
+      const window = dayWindow(days, offsets.windows[index] ?? 0)
+      return { days, window, total: sumEntries(entries, window.start, window.end) }
+    })
     return {
       d1: { window: w1, total: sumEntries(entries, w1.start, w1.end) },
-      d3: { window: w3, total: sumEntries(entries, w3.start, w3.end) },
       week: { window: week, total: sumEntries(entries, week.start, week.end) },
-      custom: { window: custom, total: sumEntries(entries, custom.start, custom.end) },
+      custom,
       month: { window: monthWindow(offsets.month) },
       season: { window: seasonWindow(offsets.season) },
+      year: { window: yearWindow(new Date().getFullYear() - offsets.year) },
     }
-  }, [entries, offsets, customDays])
+  }, [entries, offsets, windows])
 
   const monthTotal = sumEntries(entries, views.month.window.start, views.month.window.end)
   const seasonTotal = sumEntries(entries, views.season.window.start, views.season.window.end)
+  const yearTotal = sumEntries(entries, views.year.window.start, views.year.window.end)
   const rainy = recentRainy(entries, 5)
 
-  const bump = (key: keyof Offsets, delta: number) => {
+  const bump = (key: 'd1' | 'week' | 'month' | 'season' | 'year', delta: number) => {
     setOffsets((current) => ({ ...current, [key]: Math.max(0, current[key] + delta) }))
+  }
+
+  const bumpWindow = (index: number, delta: number) => {
+    setOffsets((current) => {
+      const next = [...current.windows]
+      next[index] = Math.max(0, (next[index] ?? 0) + delta)
+      return { ...current, windows: next }
+    })
   }
 
   const save = async (tenths: number | null) => {
@@ -180,14 +191,6 @@ export function Dashboard() {
           onNext={offsets.d1 > 0 ? () => bump('d1', -1) : undefined}
         />
         <StatCard
-          label="72 hours"
-          tenths={views.d3.total}
-          units={units}
-          rangeLabel={formatWindowLabel(views.d3.window.start, views.d3.window.end, false)}
-          onPrev={() => bump('d3', 1)}
-          onNext={offsets.d3 > 0 ? () => bump('d3', -1) : undefined}
-        />
-        <StatCard
           label="7 days"
           tenths={views.week.total}
           units={units}
@@ -195,14 +198,17 @@ export function Dashboard() {
           onPrev={() => bump('week', 1)}
           onNext={offsets.week > 0 ? () => bump('week', -1) : undefined}
         />
-        <StatCard
-          label={`${customDays} days`}
-          tenths={views.custom.total}
-          units={units}
-          rangeLabel={formatWindowLabel(views.custom.window.start, views.custom.window.end, false)}
-          onPrev={() => bump('custom', 1)}
-          onNext={offsets.custom > 0 ? () => bump('custom', -1) : undefined}
-        />
+        {views.custom.map((custom, index) => (
+          <StatCard
+            key={`${custom.days}-${index}`}
+            label={`${custom.days} days`}
+            tenths={custom.total}
+            units={units}
+            rangeLabel={formatWindowLabel(custom.window.start, custom.window.end, custom.days === 1)}
+            onPrev={() => bumpWindow(index, 1)}
+            onNext={(offsets.windows[index] ?? 0) > 0 ? () => bumpWindow(index, -1) : undefined}
+          />
+        ))}
         <StatCard
           label="Month"
           tenths={monthTotal}
@@ -218,6 +224,14 @@ export function Dashboard() {
           rangeLabel={`${views.season.window.name} ${views.season.window.start.getFullYear()}`}
           onPrev={() => bump('season', 1)}
           onNext={offsets.season > 0 ? () => bump('season', -1) : undefined}
+        />
+        <StatCard
+          label="Year"
+          tenths={yearTotal}
+          units={units}
+          rangeLabel={String(views.year.window.start.getFullYear())}
+          onPrev={() => bump('year', 1)}
+          onNext={offsets.year > 0 ? () => bump('year', -1) : undefined}
         />
       </section>
 
@@ -242,7 +256,7 @@ export function Dashboard() {
             <p className="muted">No rain recorded yet. Add today’s reading to start the log.</p>
           )}
           <p className="card-note">
-            Season window: {formatRange(views.season.window.start, views.season.window.end)}
+            Your five most recent days with rain.
           </p>
         </article>
 
@@ -255,8 +269,7 @@ export function Dashboard() {
           </div>
           <TrendChart entries={entries} units={units} />
           <p className="card-note">
-            Today is {formatValue(currentToday ?? 0, units)} {units}. Totals update automatically when
-            the file changes on disk.
+            Today is {formatValue(currentToday ?? 0, units)} {units}.
           </p>
         </article>
       </section>

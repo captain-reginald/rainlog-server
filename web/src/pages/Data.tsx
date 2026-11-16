@@ -76,10 +76,10 @@ export function Data() {
     } catch (error) {
       if (error instanceof ApiError && error.status === 409 && error.body.state) {
         queryClient.setQueryData(['state'], error.body.state)
-        notify('The file changed since the preview. Review the new state and try again.', 'warn')
+        notify('The readings changed since the preview. Review the new state and try again.', 'warn')
       } else if (error instanceof ApiError && error.status === 422) {
         notify(
-          'rainlog.json is not valid JSON. Repair it on the host, or re-import with “Replace all” and “Force” checked.',
+          'The stored readings are not valid JSON. Repair them on the host, or re-import with “Replace all” and “Force” checked.',
           'error',
         )
       } else {
@@ -109,16 +109,16 @@ export function Data() {
           <h1>Import, export, recover</h1>
         </div>
         <p className="muted page-head-note">
-          The shared file always stays in the plugin’s format.
+          Export, import, and keep recovery copies without touching the live readings.
         </p>
       </div>
 
       {state?.parseError ? (
         <div className="banner banner-error">
-          <strong>rainlog.json can’t be parsed.</strong>
+          <strong>The stored readings can’t be parsed.</strong>
           <span>{state.parseError}</span>
           <span>
-            Writes are blocked so nothing is overwritten. Repair the file on the host, or import a
+            Writes are blocked so nothing is overwritten. Repair the readings on the host, or import a
             replacement with <em>Replace all</em> and <em>Force</em> enabled below.
           </span>
         </div>
@@ -153,8 +153,8 @@ export function Data() {
           </a>
         </div>
         <p className="card-note">
-          JSON is exactly the plugin’s <code>{'{"entries": {"YYYY-MM-DD": tenths}}'}</code> shape. CSV
-          has <code>date,tenths,inches</code> columns, which the importer also accepts.
+          JSON keeps the full date map; CSV has <code>date,tenths,inches</code> columns, which the
+          importer also accepts.
         </p>
       </section>
 
@@ -181,7 +181,7 @@ export function Data() {
           </label>
           <label className="checkbox">
             <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} />
-            <span>Force through a corrupt file</span>
+            <span>Force through corrupt data</span>
           </label>
         </div>
         <label className="field">
@@ -273,8 +273,8 @@ export function Data() {
           </button>
         </div>
         <p className="muted">
-          Saved in <code>.rainlog-backups/</code> inside the data volume. The server also snapshots
-          before overwriting an externally changed file, and hourly while in use.
+          Saved in the backups folder inside the data volume. The server also snapshots before
+          overwriting an externally changed file, and hourly while in use.
         </p>
         {snapshots.length === 0 ? (
           <p className="muted">No snapshots yet.</p>
@@ -304,7 +304,7 @@ export function Data() {
                         className="ghost small"
                         disabled={restoreMutation.isPending}
                         onClick={() => {
-                          if (window.confirm(`Restore ${snapshot.name}? The current file is snapshotted first.`)) {
+                          if (window.confirm(`Restore ${snapshot.name}? Current readings are snapshotted first.`)) {
                             restoreMutation.mutate(snapshot.name)
                           }
                         }}
@@ -321,36 +321,6 @@ export function Data() {
             </table>
           </div>
         )}
-      </section>
-
-      <section className="card">
-        <div className="card-head">
-          <h2>Compatibility notes</h2>
-        </div>
-        <div className="compat-grid">
-          <div>
-            <h3>Shared file</h3>
-            <p>
-              <code>rainlog.json</code> in the data volume is the same file the Omarchy plugin reads
-              and writes. Point the plugin’s <em>Data file path</em> setting at the synced copy.
-            </p>
-            <pre>{'{\n  "entries": {\n    "2026-11-14": 23\n  }\n}'}</pre>
-          </div>
-          <div>
-            <h3>Web-only settings</h3>
-            <p>
-              Units and the custom window live in <code>rainlog-web.json</code> beside the data file.
-              They are never written into <code>rainlog.json</code>, because the plugin rewrites that
-              entire file from memory when it saves.
-            </p>
-            <h3>Syncing</h3>
-            <p>
-              Mount the <strong>directory</strong>, not the single file, so atomic replaces are
-              visible to the host and the sync client. Exclude <code>.rainlog-backups/</code> and
-              hidden <code>*.tmp-*</code> files.
-            </p>
-          </div>
-        </div>
       </section>
     </div>
   )

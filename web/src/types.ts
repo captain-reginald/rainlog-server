@@ -3,7 +3,19 @@ export type Units = 'in' | 'mm'
 export interface Preferences {
   version: 1
   units: Units
-  customDays: number
+  windows: number[]
+}
+
+export interface Climate {
+  version: 1
+  locality: string
+  resolvedName: string
+  latitude: number
+  longitude: number
+  periodStart: number
+  periodEnd: number
+  monthlyTenths: number[]
+  fetchedAt: string
 }
 
 export interface ConflictFile {

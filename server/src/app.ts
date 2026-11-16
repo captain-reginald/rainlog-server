@@ -4,11 +4,13 @@ import path from 'node:path'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import { ClimateNotFoundError, ClimateUpstreamError, resolveClimate } from './climate.js'
 import { ImportParseError, parseImport, toCsv, toJson } from './importers.js'
 import {
   ConflictError,
   CorruptDataError,
   MAX_TENTHS,
+  MAX_WINDOWS,
   NotFoundError,
   RainlogStore,
   ValidationError,
@@ -46,7 +48,11 @@ const importBody = z.object({
 
 const prefsBody = z.object({
   units: z.enum(['in', 'mm']).default('in'),
-  customDays: z.number().int().min(1).max(365).default(14),
+  windows: z.array(z.number().int().min(1).max(365)).min(1).max(MAX_WINDOWS),
+})
+
+const climateBody = z.object({
+  locality: z.string().trim().min(2).max(120),
 })
 
 const originBody = z.object({}).passthrough()
@@ -151,6 +157,12 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     if (error instanceof ImportParseError) {
       return reply.code(400).send({ error: 'invalid_import', message: error.message })
     }
+    if (error instanceof ClimateNotFoundError) {
+      return reply.code(404).send({ error: 'location_not_found', message: error.message })
+    }
+    if (error instanceof ClimateUpstreamError) {
+      return reply.code(502).send({ error: 'climate_unavailable', message: error.message })
+    }
     if (error instanceof NotFoundError) {
       return reply.code(404).send({ error: 'not_found', message: error.message })
     }
@@ -222,6 +234,21 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     const body = parseBody(prefsBody, request.body ?? {})
     const prefs = await store.writePrefs({ version: 1, ...body })
     return reply.send(prefs)
+  })
+
+  app.get('/api/climate', async () => ({ climate: await store.readClimate() }))
+
+  app.put('/api/climate', async (request, reply) => {
+    const body = parseBody(climateBody, request.body ?? {})
+    const climate = await resolveClimate(body.locality)
+    await store.writeClimate(climate)
+    return reply.send({ climate })
+  })
+
+  app.delete('/api/climate', async (request, reply) => {
+    parseBody(originBody, request.body ?? {})
+    await store.clearClimate()
+    return reply.send({ climate: null })
   })
 
   app.get('/api/snapshots', async () => ({ snapshots: await store.listSnapshots() }))

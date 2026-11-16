@@ -1,12 +1,5 @@
 import { amountValue, formatAxis, formatMonthShort, formatShortDate } from '../lib/format'
-import {
-  cumulativeSeason,
-  lastNDays,
-  monthlyTotals,
-  seasonName,
-  seasonWindow,
-  type Entries,
-} from '../lib/model'
+import { lastNDays, monthlyTotals, type Entries } from '../lib/model'
 import type { Units } from '../types'
 
 const WIDTH = 760
@@ -132,121 +125,85 @@ export function TrendChart({ entries, units, days = 30 }: { entries: Entries; un
   )
 }
 
-interface LineSeries {
-  label: string
-  values: number[]
-  className: string
-}
-
-function LineChart({
-  series,
+export function ClimateMonthlyChart({
+  entries,
+  year,
   units,
+  monthlyTenths,
   ariaLabel,
-  xLabels,
 }: {
-  series: LineSeries[]
+  entries: Entries
+  year: number
   units: Units
+  monthlyTenths: number[]
   ariaLabel: string
-  xLabels: { at: number; label: string }[]
 }) {
   const height = 320
   const plotWidth = WIDTH - MARGIN.left - MARGIN.right
   const plotHeight = height - MARGIN.top - MARGIN.bottom
-  const max = niceCeil(Math.max(...series.flatMap((line) => line.values), 0.1))
-  const longest = Math.max(...series.map((line) => line.values.length), 2)
+  const actual = monthlyTotals(entries, year).map((tenths) => amountValue(tenths, units))
+  const normal = monthlyTenths.map((tenths) => amountValue(tenths, units))
+  const max = niceCeil(Math.max(...actual, ...normal, 0.1))
+  const slot = plotWidth / 12
+  const barWidth = Math.min(20, slot * 0.3)
   const ticks = [0, 0.25, 0.5, 0.75, 1]
-  const xFor = (index: number) => MARGIN.left + (index / (longest - 1)) * plotWidth
-  const yFor = (value: number) => MARGIN.top + plotHeight - (value / max) * plotHeight
+  const labels = Array.from({ length: 12 }, (_, month) => formatMonthShort(month))
 
   return (
-    <div>
-      <div className="chart-legend">
-        {series.map((line) => (
-          <span key={line.label} className="legend-item">
-            <span className={`legend-swatch ${line.className}`} />
-            {line.label}
-          </span>
-        ))}
-      </div>
-      <svg className="chart" viewBox={`0 0 ${WIDTH} ${height}`} role="img" aria-label={ariaLabel}>
-        {ticks.map((fraction) => {
-          const y = MARGIN.top + plotHeight - fraction * plotHeight
-          return (
-            <g key={fraction}>
-              <line className="chart-grid" x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={y} y2={y} />
-              <text className="chart-tick" x={MARGIN.left - 10} y={y + 4} textAnchor="end">
-                {formatAxis(fraction * max, units)}
-              </text>
-            </g>
-          )
-        })}
-        {series.map((line) => {
-          const points = line.values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(' ')
-          const lastIndex = line.values.length - 1
-          const lastValue = line.values[lastIndex]
-          return (
-            <g key={line.label}>
-              <polyline className={`chart-line ${line.className}`} points={points} />
-              {lastValue !== undefined && lastIndex >= 0 ? (
-                <circle className={`chart-point ${line.className}`} cx={xFor(lastIndex)} cy={yFor(lastValue)} r={4}>
-                  <title>{`${line.label}: ${formatAxis(lastValue, units)} ${units}`}</title>
-                </circle>
-              ) : null}
-            </g>
-          )
-        })}
-        {xLabels.map((tick) => (
-          <text
-            key={`${tick.at}-${tick.label}`}
-            className="chart-label"
-            x={xFor(tick.at)}
-            y={height - MARGIN.bottom + 20}
-            textAnchor={tick.at === 0 ? 'start' : tick.at === longest - 1 ? 'end' : 'middle'}
-          >
-            {tick.label}
-          </text>
-        ))}
-        <text className="chart-axis-unit" x={MARGIN.left - 10} y={MARGIN.top - 8} textAnchor="end">
-          {units}
-        </text>
-      </svg>
-    </div>
-  )
-}
-
-export function SeasonCompareChart({ entries, units }: { entries: Entries; units: Units }) {
-  const currentWindow = seasonWindow(0)
-  const previousWindow = seasonWindow(1)
-  const current = cumulativeSeason(entries, currentWindow.start)
-  const previous = cumulativeSeason(entries, previousWindow.start).slice(0, current.length)
-  const currentYear = currentWindow.start.getFullYear()
-  const previousYear = previousWindow.start.getFullYear()
-  const series: LineSeries[] = [
-    {
-      label: `${currentWindow.name} ${currentYear} so far`,
-      values: current.map((point) => amountValue(point.value, units)),
-      className: 'series-current',
-    },
-    {
-      label: `${previousWindow.name} ${previousYear} to the same day`,
-      values: previous.map((point) => amountValue(point.value, units)),
-      className: 'series-previous',
-    },
-  ]
-  const indices = current.length > 0
-    ? [...new Set([0, Math.floor((current.length - 1) / 2), current.length - 1])]
-    : []
-  const xLabels = indices.map((index) => ({
-    at: index,
-    label: current[index] ? formatShortDate(current[index].key) : '',
-  }))
-
-  return (
-    <LineChart
-      series={series}
-      units={units}
-      ariaLabel={`Cumulative rainfall for ${seasonName(currentWindow.start)} compared with the previous season`}
-      xLabels={xLabels}
-    />
+    <svg className="chart" viewBox={`0 0 ${WIDTH} ${height}`} role="img" aria-label={ariaLabel}>
+      {ticks.map((fraction) => {
+        const y = MARGIN.top + plotHeight - fraction * plotHeight
+        return (
+          <g key={fraction}>
+            <line className="chart-grid" x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={y} y2={y} />
+            <text className="chart-tick" x={MARGIN.left - 10} y={y + 4} textAnchor="end">
+              {formatAxis(fraction * max, units)}
+            </text>
+          </g>
+        )
+      })}
+      {labels.map((label, index) => {
+        const center = MARGIN.left + index * slot + slot / 2
+        const mine = actual[index] ?? 0
+        const average = normal[index] ?? 0
+        const mineHeight = (mine / max) * plotHeight
+        const averageHeight = (average / max) * plotHeight
+        return (
+          <g key={label}>
+            <rect
+              className={mine > 0 ? 'chart-bar' : 'chart-bar chart-bar-empty'}
+              x={center - barWidth - 2}
+              y={MARGIN.top + plotHeight - Math.max(mineHeight, 1.5)}
+              width={barWidth}
+              height={Math.max(mineHeight, 1.5)}
+              rx={3}
+            >
+              <title>{`${label}: ${formatAxis(mine, units)} ${units} recorded`}</title>
+            </rect>
+            <rect
+              className="chart-bar chart-bar-normal"
+              x={center + 2}
+              y={MARGIN.top + plotHeight - Math.max(averageHeight, 1.5)}
+              width={barWidth}
+              height={Math.max(averageHeight, 1.5)}
+              rx={3}
+            >
+              <title>{`${label}: ${formatAxis(average, units)} ${units} average`}</title>
+            </rect>
+            <text
+              className="chart-label"
+              x={center}
+              y={height - MARGIN.bottom + 22}
+              textAnchor="middle"
+            >
+              {label}
+            </text>
+          </g>
+        )
+      })}
+      <text className="chart-axis-unit" x={MARGIN.left - 10} y={MARGIN.top - 8} textAnchor="end">
+        {units}
+      </text>
+    </svg>
   )
 }

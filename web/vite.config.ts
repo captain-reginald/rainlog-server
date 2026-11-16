@@ -7,13 +7,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'background.jpg', 'icons/*.png'],
       manifest: {
         name: 'Rain Log',
         short_name: 'Rain Log',
-        description: 'Daily rainfall readings and rolling totals, stored in a Rain Log compatible JSON file.',
-        theme_color: '#0e1518',
-        background_color: '#0e1518',
+        description: 'Daily rainfall readings, rolling totals, and local climate averages.',
+        theme_color: '#0b1417',
+        background_color: '#0b1417',
         display: 'standalone',
         start_url: '/',
         scope: '/',
@@ -24,7 +24,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

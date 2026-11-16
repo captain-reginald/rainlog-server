@@ -40,55 +40,55 @@ export function App() {
   const showGlobalBanner = Boolean(parseError) && location.pathname !== '/data'
 
   return (
-    <div className="app-shell">
-      <header className="site-header">
-        <NavLink to="/" className="brand">
-          <DropIcon />
+    <div className="app-root">
+      <div className="app-bg" aria-hidden="true" />
+      <div className="app-shell">
+        <header className="site-header">
+          <NavLink to="/" className="brand">
+            <DropIcon />
+            <span>Rain Log</span>
+          </NavLink>
+          <nav className="site-nav" aria-label="Main">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => (isActive ? 'nav-link is-active' : 'nav-link')}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        </header>
+
+        <main className="site-main">
+          {showGlobalBanner ? (
+            <div className="banner banner-error">
+              <strong>The stored readings can’t be parsed.</strong>
+              <span>{parseError}</span>
+              <span>
+                Writes are paused to protect your history. <NavLink to="/data">Open the Data page</NavLink> to
+                recover it.
+              </span>
+            </div>
+          ) : null}
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/history" element={<History />} />
+            <Route path="/charts" element={<Charts />} />
+            <Route path="/data" element={<Data />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+
+        <footer className="site-footer">
           <span>Rain Log</span>
-        </NavLink>
-        <nav className="site-nav" aria-label="Main">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => (isActive ? 'nav-link is-active' : 'nav-link')}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </header>
-
-      <main className="site-main">
-        {showGlobalBanner ? (
-          <div className="banner banner-error">
-            <strong>The data file is not valid JSON.</strong>
-            <span>{parseError}</span>
-            <span>
-              Writes are paused to protect your history. <NavLink to="/data">Open the Data page</NavLink> to
-              recover it.
-            </span>
-          </div>
-        ) : null}
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/charts" element={<Charts />} />
-          <Route path="/data" element={<Data />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
-
-      <footer className="site-footer">
-        <span>Rain Log web companion</span>
-        <span aria-hidden="true">·</span>
-        <span>
-          Data stays in <code>rainlog.json</code>
-        </span>
-        <NavLink to="/data">Compatibility</NavLink>
-      </footer>
+          <span aria-hidden="true">·</span>
+          <span>Self-hosted rainfall journal</span>
+        </footer>
+      </div>
     </div>
   )
 }

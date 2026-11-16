@@ -18,7 +18,9 @@ export const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
 export const MAX_TENTHS = 9999
 export const DATA_FILE = 'rainlog.json'
 export const PREFS_FILE = 'rainlog-web.json'
+export const CLIMATE_FILE = 'rainlog-climate.json'
 export const SNAPSHOT_DIR = '.rainlog-backups'
+export const MAX_WINDOWS = 3
 const SNAPSHOT_RE = /^rainlog-\d{8}-\d{9}-[a-z0-9-]+\.json$/
 
 export interface RainlogFile {
@@ -39,7 +41,24 @@ export interface DataSnapshot {
 export interface Preferences {
   version: 1
   units: 'in' | 'mm'
-  customDays: number
+  /** Dashboard window lengths in days, in display order. */
+  windows: number[]
+}
+
+export interface ClimateCache {
+  version: 1
+  /** What the user typed. */
+  locality: string
+  /** Human-readable resolved place, e.g. "Denver, Colorado, United States". */
+  resolvedName: string
+  latitude: number
+  longitude: number
+  /** Inclusive year range the normals cover. */
+  periodStart: number
+  periodEnd: number
+  /** Average rainfall per calendar month, in tenths of an inch. */
+  monthlyTenths: number[]
+  fetchedAt: string
 }
 
 export interface SnapshotInfo {
@@ -126,13 +145,32 @@ export class NotFoundError extends Error {
   }
 }
 
-export const DEFAULT_PREFS: Preferences = { version: 1, units: 'in', customDays: 14 }
+export const DEFAULT_PREFS: Preferences = { version: 1, units: 'in', windows: [14, 30] }
 
 const prefsSchema = z.object({
   version: z.literal(1).optional(),
   units: z.enum(['in', 'mm']).default('in'),
-  customDays: z.number().int().min(1).max(365).default(14),
+  windows: z.array(z.number().int().min(1).max(365)).min(1).max(MAX_WINDOWS).optional(),
+  // Older sidecars stored a single window; read it so upgrades keep the setting.
+  customDays: z.number().int().min(1).max(365).optional(),
 })
+
+const climateSchema = z.object({
+  version: z.literal(1).optional(),
+  locality: z.string().min(1).max(200),
+  resolvedName: z.string().min(1).max(300),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  periodStart: z.number().int().min(1900).max(2200),
+  periodEnd: z.number().int().min(1900).max(2200),
+  monthlyTenths: z.array(z.number().int().min(0).max(100000)).length(12),
+  fetchedAt: z.string().min(1),
+})
+
+function normalizeWindows(input: { windows?: number[] | undefined; customDays?: number | undefined }): number[] {
+  const windows = input.windows ?? (input.customDays ? [input.customDays] : DEFAULT_PREFS.windows)
+  return windows.slice(0, MAX_WINDOWS)
+}
 
 export function etagFor(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex')
@@ -267,6 +305,7 @@ export class RainlogStore {
   readonly dataDir: string
   readonly dataPath: string
   readonly prefsPath: string
+  readonly climatePath: string
   readonly snapshotDir: string
   private readonly snapshotRetention: number
   private readonly snapshotIntervalMs: number
@@ -278,6 +317,7 @@ export class RainlogStore {
     this.dataDir = path.resolve(options.dataDir)
     this.dataPath = path.join(this.dataDir, DATA_FILE)
     this.prefsPath = path.join(this.dataDir, PREFS_FILE)
+    this.climatePath = path.join(this.dataDir, CLIMATE_FILE)
     this.snapshotDir = path.join(this.dataDir, SNAPSHOT_DIR)
     this.snapshotRetention = Math.max(1, options.snapshotRetention ?? 100)
     this.snapshotIntervalMs = Math.max(0, options.snapshotIntervalSec ?? 3600) * 1000
@@ -339,14 +379,14 @@ export class RainlogStore {
     try {
       const text = await fs.readFile(this.prefsPath, 'utf8')
       const parsed = prefsSchema.safeParse(JSON.parse(text))
-      if (!parsed.success) return { ...DEFAULT_PREFS }
+      if (!parsed.success) return { ...DEFAULT_PREFS, windows: [...DEFAULT_PREFS.windows] }
       return {
         version: 1,
         units: parsed.data.units,
-        customDays: parsed.data.customDays,
+        windows: normalizeWindows(parsed.data),
       }
     } catch {
-      return { ...DEFAULT_PREFS }
+      return { ...DEFAULT_PREFS, windows: [...DEFAULT_PREFS.windows] }
     }
   }
 
@@ -358,10 +398,55 @@ export class RainlogStore {
     const prefs: Preferences = {
       version: 1,
       units: parsed.data.units,
-      customDays: parsed.data.customDays,
+      windows: normalizeWindows(parsed.data),
     }
     await atomicWrite(this.prefsPath, JSON.stringify(prefs, null, 2), 0o664)
     return prefs
+  }
+
+  async readClimate(): Promise<ClimateCache | null> {
+    try {
+      const text = await fs.readFile(this.climatePath, 'utf8')
+      const parsed = climateSchema.safeParse(JSON.parse(text))
+      if (!parsed.success) return null
+      return {
+        version: 1,
+        locality: parsed.data.locality,
+        resolvedName: parsed.data.resolvedName,
+        latitude: parsed.data.latitude,
+        longitude: parsed.data.longitude,
+        periodStart: parsed.data.periodStart,
+        periodEnd: parsed.data.periodEnd,
+        monthlyTenths: parsed.data.monthlyTenths,
+        fetchedAt: parsed.data.fetchedAt,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  async writeClimate(input: unknown): Promise<ClimateCache> {
+    const parsed = climateSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError('Invalid climate data', parsed.error.flatten())
+    }
+    const climate: ClimateCache = {
+      version: 1,
+      locality: parsed.data.locality,
+      resolvedName: parsed.data.resolvedName,
+      latitude: parsed.data.latitude,
+      longitude: parsed.data.longitude,
+      periodStart: parsed.data.periodStart,
+      periodEnd: parsed.data.periodEnd,
+      monthlyTenths: parsed.data.monthlyTenths,
+      fetchedAt: parsed.data.fetchedAt,
+    }
+    await atomicWrite(this.climatePath, JSON.stringify(climate, null, 2), 0o664)
+    return climate
+  }
+
+  async clearClimate(): Promise<void> {
+    await fs.rm(this.climatePath, { force: true })
   }
 
   async listConflicts(): Promise<ConflictFileInfo[]> {

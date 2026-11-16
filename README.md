@@ -1,6 +1,6 @@
 # Rain Log server
 
-A small, self-hosted web companion for the [Rain Log Omarchy plugin](https://github.com/captain-reginald/omarchy-rain-log). It reads and writes the **same `rainlog.json` file** the plugin uses, so a synced folder gives you the bar widget on your desktop and a phone-friendly web app everywhere else.
+A small, self-hosted web companion for the [Rain Log Omarchy plugin](https://github.com/captain-reginald/omarchy-rain-log). It reads and writes the **same `rainlog.json` file** the plugin uses, so a synced folder gives you the bar widget on your desktop and a phone-friendly web app everywhere else. The web app adds configurable rolling windows, year totals, and rainfall comparisons against your area's 1991–2020 climate normals.
 
 No database, no accounts, no telemetry. One JSON file, a few flat companion files, and a container.
 
@@ -8,10 +8,11 @@ No database, no accounts, no telemetry. One JSON file, a few flat companion file
 
 ## What it adds
 
-- **A proper big-screen and phone view** of the same daily readings.
-- **Rolling totals** for 24 hours, 72 hours, 7 days, a custom window, the month, and the season, with back/forward stepping.
+- **A proper big-screen and phone view** of the same daily readings, over a rain-storm backdrop with glass panels.
+- **Rolling totals** for 24 hours, 7 days, one to three configurable windows of any length, the month, the season, and the year, each with back/forward stepping.
+- **Local climate comparison**: enter your locality in Settings and see rain to date against monthly, seasonal, and yearly averages, with a month-by-month chart.
 - **Calendar editing** for catching up on missed days or fixing a typo.
-- **Charts**: monthly totals, season-to-date compared with the previous season, and every year on record.
+- **Charts**: monthly totals, recorded vs. average rainfall by month, and every year on record.
 - **CSV and JSON import/export**, with a dry-run preview before anything is written.
 - **Automatic snapshots** in `.rainlog-backups/`, plus a snapshot before overwriting a file that changed underneath the server.
 - **Optional millimetre display** while keeping every stored value in tenths of an inch.
@@ -95,7 +96,7 @@ The rules the server enforces:
 | Unknown data | Top-level keys and untouched entries are preserved, even though the plugin would drop extra top-level keys itself |
 | Corruption | Invalid JSON is reported and writes are refused, so the server never silently replaces it |
 
-Web-only preferences live in `rainlog-web.json` next to the data file. They are **never** stored inside `rainlog.json`, because the plugin rewrites that entire file from memory whenever it saves.
+Web-only preferences live in `rainlog-web.json` next to the data file, and the cached climate normals live in `rainlog-climate.json`. Neither is ever stored inside `rainlog.json`, because the plugin rewrites that entire file from memory whenever it saves.
 
 Concurrent editing is best avoided: the plugin has no locking and will replace the whole file with its in-memory copy. The server narrows the window by re-reading and merging immediately before each write, and it snapshots before overwriting a file that changed externally. If you use a sync service, let it settle before editing from two devices at once.
 
@@ -126,13 +127,19 @@ Snapshots live in `.rainlog-backups/`. One is taken at most hourly while in use,
 
 ![Charts](screenshots/charts.png)
 
-Seasons are meteorological: December–February, March–May, June–August, September–November. Weeks are the last seven calendar days including today. The custom window defaults to 14 days. All period math runs in the browser using explicit date keys, so the container’s timezone cannot shift “today” relative to the plugin.
+Seasons are meteorological: December–February, March–May, June–August, September–November. Weeks are the last seven calendar days including today. Dashboard windows are set in Settings: one to three lengths from 1 to 365 days, defaulting to 14 and 30. All period math runs in the browser using explicit date keys, so the container’s timezone cannot shift “today” relative to the plugin.
+
+### Local climate comparison
+
+Settings takes a locality name and resolves it through Open-Meteo’s geocoding and historical archive APIs. The server computes average rainfall for each calendar month over 1991–2020, converts it to tenths of an inch, and caches the result in `rainlog-climate.json`, so comparisons keep working offline after the first lookup.
+
+Rain to date is compared with the same portion of the average period: each month’s normal is spread evenly across its days rather than assuming a flat fraction of the month. The Charts page shows three comparison cards (month, season, year) plus a month-by-month bar chart with recorded values beside the 1991–2020 average. Full-period averages are shown under each card.
 
 ## Settings and data recovery
 
 ![Data page](screenshots/data.png)
 
-The Data page handles export, import, snapshots, and conflict detection. Settings covers inches vs millimetres, the custom window length, and server status.
+The Data page handles export, import, snapshots, and conflict detection. Settings covers inches vs millimetres, dashboard window lengths, the locality lookup, and server status.
 
 ![Settings page](screenshots/settings.png)
 
@@ -165,7 +172,8 @@ Everything the UI does is available as JSON:
 | `PUT` | `/api/entries/:date` | `{ "tenths": 23 }` or `{ "tenths": null }`; optional `If-Match` |
 | `POST` | `/api/import` | `{ content, format, dryRun, replaceAll, ifMatch, force }` |
 | `GET` | `/api/export.json` / `/api/export.csv` | Download the merged entries |
-| `GET` / `PUT` | `/api/preferences` | `{ units, customDays }` |
+| `GET` / `PUT` | `/api/preferences` | `{ units, windows }` where `windows` is 1–3 lengths in days |
+| `GET` / `PUT` / `DELETE` | `/api/climate` | Read cached normals, look up a locality, or clear it |
 | `GET` / `POST` | `/api/snapshots` | List, or create a manual snapshot |
 | `GET` | `/api/snapshots/:name` | Download a snapshot |
 | `POST` | `/api/snapshots/:name/restore` | Snapshot the current file, then restore |

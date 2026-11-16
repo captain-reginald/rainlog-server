@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { FastifyInstance } from 'fastify'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../src/app.js'
 import type { StatePayload } from '../src/storage.js'
 
@@ -58,7 +58,7 @@ describe('API', () => {
     const state = await getState()
     expect(state.entries).toEqual({})
     expect(state.parseError).toBeNull()
-    expect(state.prefs).toEqual({ version: 1, units: 'in', customDays: 14 })
+    expect(state.prefs).toEqual({ version: 1, units: 'in', windows: [14, 30] })
     expect(state.conflicts).toEqual([])
   })
 
@@ -186,16 +186,127 @@ describe('API', () => {
       method: 'PUT',
       url: '/api/preferences',
       headers: { ...originHeaders, 'content-type': 'application/json' },
-      payload: JSON.stringify({ units: 'mm', customDays: 21 }),
+      payload: JSON.stringify({ units: 'mm', windows: [21, 45] }),
     })
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ version: 1, units: 'mm', customDays: 21 })
+    expect(response.json()).toEqual({ version: 1, units: 'mm', windows: [21, 45] })
 
     const sidecar = JSON.parse(
       await fs.readFile(path.join(dir, 'rainlog-web.json'), 'utf8'),
     ) as Record<string, unknown>
-    expect(sidecar).toEqual({ version: 1, units: 'mm', customDays: 21 })
+    expect(sidecar).toEqual({ version: 1, units: 'mm', windows: [21, 45] })
     expect((await getState()).prefs.units).toBe('mm')
+  })
+
+  it('migrates a single legacy custom window', async () => {
+    await fs.writeFile(
+      path.join(dir, 'rainlog-web.json'),
+      JSON.stringify({ version: 1, units: 'in', customDays: 10 }),
+    )
+    expect((await getState()).prefs).toEqual({ version: 1, units: 'in', windows: [10] })
+  })
+
+  it('rejects an empty or oversized window list', async () => {
+    for (const windows of [[], [1, 2, 3, 4], [0], [400]]) {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/api/preferences',
+        headers: { ...originHeaders, 'content-type': 'application/json' },
+        payload: JSON.stringify({ units: 'in', windows }),
+      })
+      expect(response.statusCode).toBe(400)
+    }
+  })
+
+  it('resolves and caches climate normals, then clears them', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.startsWith('https://geocoding-api.open-meteo.com/')) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                name: 'Denver',
+                admin1: 'Colorado',
+                country: 'United States',
+                latitude: 39.7392,
+                longitude: -104.9903,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      const time: string[] = []
+      const precipitation: number[] = []
+      for (let year = 1991; year <= 2020; year += 1) {
+        for (let month = 0; month < 12; month += 1) {
+          const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+          for (let day = 1; day <= days; day += 1) {
+            const pad = (value: number) => String(value).padStart(2, '0')
+            time.push(`${year}-${pad(month + 1)}-${pad(day)}`)
+            precipitation.push(month === 0 && day === 1 ? 25.4 : 0)
+          }
+        }
+      }
+      return new Response(
+        JSON.stringify({ daily: { time, precipitation_sum: precipitation } }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      const saved = await app.inject({
+        method: 'PUT',
+        url: '/api/climate',
+        headers: { ...originHeaders, 'content-type': 'application/json' },
+        payload: JSON.stringify({ locality: 'Denver' }),
+      })
+      expect(saved.statusCode).toBe(200)
+      const climate = saved.json().climate as {
+        resolvedName: string
+        monthlyTenths: number[]
+        periodStart: number
+      }
+      expect(climate.resolvedName).toBe('Denver, Colorado, United States')
+      expect(climate.periodStart).toBe(1991)
+      expect(climate.monthlyTenths).toHaveLength(12)
+      expect(climate.monthlyTenths[0]).toBe(10)
+
+      const listed = await app.inject({ method: 'GET', url: '/api/climate' })
+      expect(listed.json().climate.resolvedName).toBe('Denver, Colorado, United States')
+
+      const cleared = await app.inject({
+        method: 'DELETE',
+        url: '/api/climate',
+        headers: { ...originHeaders, 'content-type': 'application/json' },
+        payload: '{}',
+      })
+      expect(cleared.statusCode).toBe(200)
+      expect((await app.inject({ method: 'GET', url: '/api/climate' })).json().climate).toBeNull()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('reports an unknown locality', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ results: [] }), { status: 200 })),
+    )
+    try {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/api/climate',
+        headers: { ...originHeaders, 'content-type': 'application/json' },
+        payload: JSON.stringify({ locality: 'Nowhere At All' }),
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error).toBe('location_not_found')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('creates, downloads, and restores snapshots', async () => {
