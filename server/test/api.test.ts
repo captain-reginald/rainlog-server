@@ -58,7 +58,7 @@ describe('API', () => {
     const state = await getState()
     expect(state.entries).toEqual({})
     expect(state.parseError).toBeNull()
-    expect(state.prefs).toEqual({ version: 1, units: 'in', windows: [14, 30] })
+    expect(state.prefs).toEqual({ version: 1, units: 'in', windows: [30] })
     expect(state.conflicts).toEqual([])
   })
 

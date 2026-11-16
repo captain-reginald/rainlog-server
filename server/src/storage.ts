@@ -145,7 +145,7 @@ export class NotFoundError extends Error {
   }
 }
 
-export const DEFAULT_PREFS: Preferences = { version: 1, units: 'in', windows: [14, 30] }
+export const DEFAULT_PREFS: Preferences = { version: 1, units: 'in', windows: [30] }
 
 const prefsSchema = z.object({
   version: z.literal(1).optional(),

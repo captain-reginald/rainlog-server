@@ -127,7 +127,7 @@ Snapshots live in `.rainlog-backups/`. One is taken at most hourly while in use,
 
 ![Charts](screenshots/charts.png)
 
-Seasons are meteorological: December–February, March–May, June–August, September–November. Weeks are the last seven calendar days including today. Dashboard windows are set in Settings: one to three lengths from 1 to 365 days, defaulting to 14 and 30. All period math runs in the browser using explicit date keys, so the container’s timezone cannot shift “today” relative to the plugin.
+Seasons are meteorological: December–February, March–May, June–August, September–November. Weeks are the last seven calendar days including today. Dashboard windows are set in Settings: one to three lengths from 1 to 365 days, defaulting to a single 30-day window. All period math runs in the browser using explicit date keys, so the container’s timezone cannot shift “today” relative to the plugin.
 
 ### Local climate comparison
 

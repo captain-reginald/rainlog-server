@@ -3,7 +3,10 @@ name: rainlog
 services:
   rainlog:
     image: ghcr.io/captain-reginald/rainlog-server:latest
-    build: .
+    build:
+      context: .
+      args:
+        RAINLOG_VERSION: "${RAINLOG_VERSION:-1.0.0}"
     container_name: rainlog
     ports:
       # Published on all interfaces so phones on the LAN can reach it.

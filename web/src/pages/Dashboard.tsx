@@ -38,7 +38,7 @@ export function Dashboard() {
   const state = stateQuery.data
   const entries = useMemo(() => state?.entries ?? {}, [state])
   const units = state?.prefs.units ?? 'in'
-  const windows = state?.prefs.windows ?? [14, 30]
+  const windows = state?.prefs.windows ?? [30]
   const today = dateKey(new Date())
   const currentToday = entries[today]
   const { draft, setDraft, inputRef } = useEntryDraft(today, currentToday)

@@ -24,7 +24,7 @@ export function Settings() {
   const { notify } = useToast()
 
   const [units, setUnits] = useState<Units>('in')
-  const [windows, setWindows] = useState<string[]>(['14', '30'])
+  const [windows, setWindows] = useState<string[]>(['30'])
   const [locality, setLocality] = useState('')
   const [initialized, setInitialized] = useState(false)
   const [climateInitialized, setClimateInitialized] = useState(false)
